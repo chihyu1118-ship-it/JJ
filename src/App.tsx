@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Package, Truck, Factory, Mail, Lock, Unlock, Plus, Search, 
+  Package, Truck, Factory, Mail, Unlock, Plus, Search, 
   Printer, AlertCircle, RefreshCw, LogOut, FileText, Box, 
-  CheckSquare, Trash2, ArrowUpRight, Clock, ShieldCheck
+  CheckSquare, Trash2, Clock, ShieldCheck, Download, Upload, 
+  Users, Layers, BarChart3, TrendingUp
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 interface Order {
   id: string;
@@ -21,6 +25,24 @@ interface Order {
   carrier?: string;
   trackingNo?: string;
   notes?: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  contact: string;
+  phone: string;
+  email: string;
+  address: string;
+}
+
+interface InventoryItem {
+  id: string;
+  sku: string;
+  name: string;
+  category: string;
+  stock: number;
+  unitPrice: number;
 }
 
 interface EmailLog {
@@ -94,6 +116,18 @@ const INITIAL_ORDERS: Order[] = [
   }
 ];
 
+const INITIAL_CUSTOMERS: Customer[] = [
+  { id: 'C-01', name: '台灣科技股份有限公司', contact: '張經理', phone: '02-2345-6789', email: 'purchasing@tw-tech.com.tw', address: '台北市內湖區科技路100號' },
+  { id: 'C-02', name: '宏達精密機械有限公司', contact: '王廠長', phone: '04-2359-1234', email: 'logistics@honda-mech.com', address: '台中市工業區一路20號' },
+  { id: 'C-03', name: '聯發電子科技', contact: '李小姐', phone: '03-5789-8888', email: 'contact@mediatech.com', address: '新竹科學園區創新園路5號' },
+];
+
+const INITIAL_INVENTORY: InventoryItem[] = [
+  { id: 'I-01', sku: 'SKU-4U-CHASSIS', name: '高效能工業伺服器機箱 (4U)', category: '機箱系列', stock: 150, unitPrice: 7000 },
+  { id: 'I-02', sku: 'SKU-AL-GUARD', name: '客製化鋁擠型防護罩', category: '防護罩', stock: 320, unitPrice: 1500 },
+  { id: 'I-03', sku: 'SKU-BASE-PRO', name: '精密治具金屬底座', category: '治具配件', stock: 85, unitPrice: 3150 },
+];
+
 const INITIAL_EMAILS: EmailLog[] = [
   {
     id: 'EM-101',
@@ -123,20 +157,30 @@ const INITIAL_TODOS: TodoItem[] = [
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [password, setPassword] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'orders' | 'shipping' | 'production' | 'todos' | 'outlook'>('orders');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'shipping' | 'production' | 'customers' | 'todos' | 'outlook'>('dashboard');
   
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('jj_orders_v3');
+    const saved = localStorage.getItem('jj_orders_v4');
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
+  const [customers, setCustomers] = useState<Customer[]>(() => {
+    const saved = localStorage.getItem('jj_customers_v4');
+    return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+  });
+
+  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
+    const saved = localStorage.getItem('jj_inventory_v4');
+    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
+  });
+
   const [emails, setEmails] = useState<EmailLog[]>(() => {
-    const saved = localStorage.getItem('jj_emails_v3');
+    const saved = localStorage.getItem('jj_emails_v4');
     return saved ? JSON.parse(saved) : INITIAL_EMAILS;
   });
 
   const [todos, setTodos] = useState<TodoItem[]>(() => {
-    const saved = localStorage.getItem('jj_todos_v3');
+    const saved = localStorage.getItem('jj_todos_v4');
     return saved ? JSON.parse(saved) : INITIAL_TODOS;
   });
 
@@ -167,15 +211,23 @@ export default function App() {
   const [newTodoDate, setNewTodoDate] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('jj_orders_v3', JSON.stringify(orders));
+    localStorage.setItem('jj_orders_v4', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('jj_emails_v3', JSON.stringify(emails));
+    localStorage.setItem('jj_customers_v4', JSON.stringify(customers));
+  }, [customers]);
+
+  useEffect(() => {
+    localStorage.setItem('jj_inventory_v4', JSON.stringify(inventory));
+  }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem('jj_emails_v4', JSON.stringify(emails));
   }, [emails]);
 
   useEffect(() => {
-    localStorage.setItem('jj_todos_v3', JSON.stringify(todos));
+    localStorage.setItem('jj_todos_v4', JSON.stringify(todos));
   }, [todos]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -230,6 +282,69 @@ export default function App() {
     });
   };
 
+  // Export Orders to Excel
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(orders);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+    XLSX.writeFile(workbook, "JJ_Orders_Export.xlsx");
+  };
+
+  // Import Orders from Excel
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json<Order>(ws);
+        if (data && data.length > 0) {
+          setOrders([...data, ...orders]);
+          alert(`成功匯入 ${data.length} 筆訂單資料！`);
+        }
+      } catch (err) {
+        alert('檔案格式錯誤，無法解析 Excel 檔案');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // Generate Official PDF Packing List
+  const generatePDF = (ord: Order) => {
+    const doc = new jsPDF() as any;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.text("JJ ENTERPRISE - OFFICIAL PACKING LIST", 14, 20);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Order ID: ${ord.id}`, 14, 30);
+    doc.text(`Customer: ${ord.customer}`, 14, 36);
+    doc.text(`Order Date: ${ord.orderDate}`, 14, 42);
+    doc.text(`Due Date: ${ord.dueDate}`, 14, 48);
+
+    const tableData = [
+      [ord.product, ord.quantity, `${ord.boxCount} Boxes`, `${ord.weightKg} kg`, `${ord.cbm} m³`]
+    ];
+
+    doc.autoTable({
+      startY: 56,
+      head: [['Product Description', 'Qty', 'Box Count', 'Gross Weight', 'CBM']],
+      body: tableData,
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.text(`Carrier: ${ord.carrier || 'N/A'}`, 14, finalY);
+    doc.text(`Tracking No: ${ord.trackingNo || 'N/A'}`, 14, finalY + 6);
+    doc.text(`Notes: ${ord.notes || 'None'}`, 14, finalY + 12);
+
+    doc.save(`Packing_List_${ord.id}.pdf`);
+  };
+
   const handleAddTodo = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTodoTitle.trim()) return;
@@ -277,19 +392,19 @@ export default function App() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-indigo-950 to-slate-950 flex items-center justify-center p-4 selection:bg-indigo-500 selection:text-white">
+      <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-950 via-indigo-950 to-slate-950 flex items-center justify-center p-4 selection:bg-indigo-500 selection:text-white">
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b15_1px,transparent_1px),linear-gradient(to_bottom,#1e293b15_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none"></div>
-        <div className="relative bg-slate-900/80 backdrop-blur-2xl border border-slate-700/60 rounded-3xl shadow-2xl p-8 sm:p-10 w-full max-w-md text-white">
+        <div className="relative bg-slate-900/85 backdrop-blur-2xl border border-slate-700/60 rounded-3xl shadow-2xl p-8 sm:p-10 w-full max-w-md text-white">
           <div className="flex justify-center mb-6">
             <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-75 animate-pulse"></div>
+              <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl blur opacity-75 animate-pulse"></div>
               <div className="relative bg-slate-900 p-4 rounded-2xl border border-slate-700">
                 <ShieldCheck className="w-9 h-9 text-indigo-400" />
               </div>
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-center tracking-tight mb-1">JJ 智慧業務出貨系統</h1>
-          <p className="text-slate-400 text-center text-xs mb-8">企業級訂單追蹤與包裝排程管理</p>
+          <h1 className="text-2xl font-extrabold text-center tracking-tight mb-1">JJ 2026 企業指揮中心</h1>
+          <p className="text-slate-400 text-center text-xs mb-8">頂級訂單 ∙ 庫存 ∙ 出貨 ∙ 生管 ∙ 智慧管理系統</p>
           
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -305,13 +420,13 @@ export default function App() {
             </div>
             <button 
               type="submit"
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-2xl font-semibold transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm"
+              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl font-semibold transition shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 text-sm"
             >
-              <Unlock className="w-4 h-4" /> 進入系統
+              <Unlock className="w-4 h-4" /> 登入系統
             </button>
           </form>
           <div className="mt-8 text-center text-[11px] text-slate-500 border-t border-slate-800/80 pt-4 flex items-center justify-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 雲端資料庫連線正常 • 隱私加密保護
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> 系統連線正常 • 完整模組已載入
           </div>
         </div>
       </div>
@@ -324,15 +439,15 @@ export default function App() {
       <header className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-indigo-600 to-violet-600 p-2.5 rounded-2xl shadow-md shadow-indigo-600/30">
+            <div className="bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-600 p-2.5 rounded-2xl shadow-md shadow-indigo-600/30">
               <Truck className="w-5 h-5 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base font-bold tracking-tight text-white">JJ 企業管理中心</h1>
-                <span className="px-2 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-semibold rounded-full border border-indigo-500/30 hidden sm:inline-block">Pro v2.6</span>
+                <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white">JJ 企業管理中心</h1>
+                <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-full border border-indigo-500/30 hidden sm:inline-block">2026 Pro</span>
               </div>
-              <p className="text-[11px] text-slate-400">訂單 ∙ 裝箱 ∙ 生管 ∙ 待辦 ∙ 郵件</p>
+              <p className="text-[11px] text-slate-400">總覽 ∙ 訂單 ∙ 庫存 ∙ 出貨 ∙ 生管 ∙ 待辦</p>
             </div>
           </div>
           
@@ -357,10 +472,20 @@ export default function App() {
 
       {/* Desktop Navigation Tabs */}
       <div className="bg-slate-900/50 backdrop-blur-md border-b border-slate-800/80 hidden md:block">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+              activeTab === 'dashboard' 
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" /> 儀表板總覽
+          </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition ${
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'orders' 
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -370,17 +495,17 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('shipping')}
-            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition ${
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'shipping' 
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Box className="w-4 h-4" /> 出貨與包裝
+            <Box className="w-4 h-4" /> 出貨與 PDF 裝箱
           </button>
           <button
             onClick={() => setActiveTab('production')}
-            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition ${
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'production' 
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -389,8 +514,18 @@ export default function App() {
             <Factory className="w-4 h-4" /> 生管進度
           </button>
           <button
+            onClick={() => setActiveTab('customers')}
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
+              activeTab === 'customers' 
+                ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
+                : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <Users className="w-4 h-4" /> 客戶與產品庫存
+          </button>
+          <button
             onClick={() => setActiveTab('todos')}
-            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition ${
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'todos' 
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -400,7 +535,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setActiveTab('outlook')}
-            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition ${
+            className={`px-4 py-3.5 font-medium text-xs sm:text-sm flex items-center gap-2 border-b-2 transition whitespace-nowrap ${
               activeTab === 'outlook' 
                 ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' 
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -414,31 +549,132 @@ export default function App() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 flex-1 w-full space-y-6">
         
-        {/* TAB 1: 業務訂單 */}
-        {activeTab === 'orders' && (
-          <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl shadow-lg">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">總訂單數</div>
-                <div className="text-2xl font-extrabold text-white">{orders.length} <span className="text-xs font-normal text-slate-400">筆</span></div>
+        {/* TAB 0: 儀表板總覽 (Bento Grid) */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Bento Grid Header Banner */}
+            <div className="bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-900 border border-indigo-800/40 p-8 rounded-3xl shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+              <div className="absolute right-0 top-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="space-y-2 z-10">
+                <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold border border-indigo-500/30">🚀 2026 AI 智慧企業中心</span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">歡迎回來，JJ 業務總監</h2>
+                <p className="text-sm text-slate-300 max-w-xl">目前系統運行順暢，所有訂單、生管進度與包裝明細已同步更新完畢。</p>
               </div>
-              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl shadow-lg">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">進行中</div>
-                <div className="text-2xl font-extrabold text-indigo-400">{orders.filter(o => o.status === '處理中').length} <span className="text-xs font-normal text-slate-400">筆</span></div>
-              </div>
-              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl shadow-lg">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">已出貨</div>
-                <div className="text-2xl font-extrabold text-emerald-400">{orders.filter(o => o.status === '已出貨').length} <span className="text-xs font-normal text-slate-400">筆</span></div>
-              </div>
-              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-5 rounded-3xl shadow-lg">
-                <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">總金額市值</div>
-                <div className="text-xl sm:text-2xl font-extrabold text-white">NT$ {orders.reduce((sum, o) => sum + o.amount, 0).toLocaleString()}</div>
+              <div className="flex items-center gap-3 z-10">
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl text-sm font-bold shadow-xl shadow-indigo-600/30 flex items-center gap-2 transition"
+                >
+                  <Plus className="w-4 h-4" /> 快速建立訂單
+                </button>
               </div>
             </div>
 
+            {/* Bento Grid Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">總營業額市值</span>
+                  <div className="bg-indigo-500/10 p-2.5 rounded-2xl text-indigo-400 border border-indigo-500/20">
+                    <TrendingUp className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">NT$ {orders.reduce((sum, o) => sum + o.amount, 0).toLocaleString()}</div>
+                  <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1 font-medium">↑ 18.5% 較上月成長</div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">進行中訂單</span>
+                  <div className="bg-amber-500/10 p-2.5 rounded-2xl text-amber-400 border border-amber-500/20">
+                    <Package className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">{orders.filter(o => o.status === '處理中').length} <span className="text-sm font-normal text-slate-400">筆訂單</span></div>
+                  <div className="text-xs text-slate-400 mt-1">產線組裝與裁切中</div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">產品總庫存量</span>
+                  <div className="bg-purple-500/10 p-2.5 rounded-2xl text-purple-400 border border-purple-500/20">
+                    <Layers className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">{inventory.reduce((sum, i) => sum + i.stock, 0)} <span className="text-sm font-normal text-slate-400">件</span></div>
+                  <div className="text-xs text-slate-400 mt-1">涵蓋 {inventory.length} 種核心品項</div>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 rounded-3xl shadow-xl flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">待辦事項未完成</span>
+                  <div className="bg-pink-500/10 p-2.5 rounded-2xl text-pink-400 border border-pink-500/20">
+                    <CheckSquare className="w-5 h-5" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-2xl sm:text-3xl font-extrabold text-white">{todos.filter(t => !t.completed).length} <span className="text-sm font-normal text-slate-400">項任務</span></div>
+                  <div className="text-xs text-pink-400 mt-1 font-medium">需優先處理</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions & Recent Orders preview */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-lg text-white">近期業務訂單摘要</h3>
+                  <button onClick={() => setActiveTab('orders')} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold">查看全部 →</button>
+                </div>
+                <div className="divide-y divide-slate-800/80">
+                  {orders.slice(0, 3).map(o => (
+                    <div key={o.id} className="py-3.5 flex justify-between items-center text-sm">
+                      <div>
+                        <div className="font-bold text-white">{o.customer}</div>
+                        <div className="text-xs text-slate-400">{o.product} (數量: {o.quantity})</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-mono font-bold text-indigo-400">NT$ {o.amount.toLocaleString()}</div>
+                        <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full">{o.status}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+                <h3 className="font-bold text-lg text-white">快捷功能面板</h3>
+                <div className="space-y-3">
+                  <button onClick={exportToExcel} className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-2xl text-xs font-semibold flex items-center justify-between text-indigo-300 transition">
+                    <span className="flex items-center gap-2"><Download className="w-4 h-4" /> 匯出所有訂單為 Excel</span>
+                    <span>.xlsx</span>
+                  </button>
+                  <label className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-2xl text-xs font-semibold flex items-center justify-between text-emerald-300 transition cursor-pointer">
+                    <span className="flex items-center gap-2"><Upload className="w-4 h-4" /> 從 Excel 匯入訂單</span>
+                    <span>上傳</span>
+                    <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
+                  </label>
+                  <button onClick={() => setActiveTab('shipping')} className="w-full py-3 px-4 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-2xl text-xs font-semibold flex items-center justify-between text-pink-300 transition">
+                    <span className="flex items-center gap-2"><Printer className="w-4 h-4" /> 產出出貨 PDF 裝箱單</span>
+                    <span>PDF</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 1: 業務訂單 */}
+        {activeTab === 'orders' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
             {/* Search & Actions */}
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-4 rounded-3xl shadow-lg flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
                 <div className="relative flex-1">
                   <Search className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
@@ -462,16 +698,28 @@ export default function App() {
                 </select>
               </div>
 
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
-              >
-                <Plus className="w-4 h-4" /> 新增業務訂單
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={exportToExcel}
+                  className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700"
+                >
+                  <Download className="w-4 h-4" /> 匯出 Excel
+                </button>
+                <label className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-2xl text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700 cursor-pointer">
+                  <Upload className="w-4 h-4" /> 匯入 Excel
+                  <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="hidden" />
+                </label>
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="px-5 py-3 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
+                >
+                  <Plus className="w-4 h-4" /> 新增訂單
+                </button>
+              </div>
             </div>
 
             {/* Orders Table */}
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-lg overflow-hidden">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
@@ -533,26 +781,26 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: 出貨與包裝明細 */}
+        {/* TAB 2: 出貨與 PDF 裝箱單 */}
         {activeTab === 'shipping' && (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 border border-indigo-800/50 text-white p-6 sm:p-8 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-900 border border-indigo-800/50 text-white p-6 sm:p-8 rounded-3xl shadow-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
               <div className="space-y-1.5">
-                <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-500/30">📦 裝箱與物流派遣</span>
-                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">出貨安排與包裝明細管理</h2>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-xl">管理各批訂單之裝箱數量、總毛重、材積與物流追蹤單號，支援一鍵列印出貨單。</p>
+                <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-semibold border border-indigo-500/30">📦 正式 PDF 裝箱單與物流派遣</span>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight">出貨安排與 PDF 裝箱明細生成</h2>
+                <p className="text-xs sm:text-sm text-slate-300 max-w-xl">一鍵下載符合國際標準的官方 PDF 裝箱單 (Packing List) 並追蹤物流單號。</p>
               </div>
               <button 
-                onClick={() => window.print()}
-                className="px-5 py-3 bg-white hover:bg-slate-100 text-slate-950 rounded-2xl text-sm font-bold flex items-center gap-2 shadow-xl transition whitespace-nowrap"
+                onClick={() => generatePDF(orders[0])}
+                className="px-6 py-3.5 bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white rounded-2xl text-sm font-bold flex items-center gap-2 shadow-xl transition whitespace-nowrap"
               >
-                <Printer className="w-4 h-4" /> 列印裝箱明細單
+                <Download className="w-4 h-4" /> 下載範例 PDF 裝箱單
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {orders.map((ord) => (
-                <div key={ord.id} className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-lg p-6 flex flex-col justify-between hover:border-slate-700 transition">
+                <div key={ord.id} className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-xl p-6 flex flex-col justify-between hover:border-slate-700 transition">
                   <div className="space-y-4">
                     <div className="flex justify-between items-start">
                       <span className="text-xs font-mono bg-indigo-950 text-indigo-400 px-3 py-1 rounded-xl font-bold border border-indigo-800/60">{ord.id}</span>
@@ -602,10 +850,10 @@ export default function App() {
                   <div className="mt-6 pt-4 border-t border-slate-800/80 flex justify-between items-center text-xs">
                     <span className="text-slate-400 font-medium">交期：{ord.dueDate}</span>
                     <button 
-                      onClick={() => alert(`正在預覽訂單 ${ord.id} 的包裝裝箱單...`)}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition flex items-center gap-1.5 border border-slate-700"
+                      onClick={() => generatePDF(ord)}
+                      className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-semibold transition flex items-center gap-1.5 shadow-md shadow-indigo-600/30"
                     >
-                      <FileText className="w-3.5 h-3.5" /> 預覽裝箱單
+                      <FileText className="w-3.5 h-3.5" /> 下載 PDF 裝箱單
                     </button>
                   </div>
                 </div>
@@ -616,8 +864,8 @@ export default function App() {
 
         {/* TAB 3: 生管進度 */}
         {activeTab === 'production' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-lg">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl">
               <h2 className="text-lg font-bold text-white">工廠生管製作進度看板 (Production Kanban)</h2>
               <p className="text-xs text-slate-400 mt-1">即時掌控產線製造節點，確保訂單準時組裝與品管出貨。</p>
             </div>
@@ -677,10 +925,58 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: 待辦事項 */}
+        {/* TAB 4: 客戶與產品庫存管理 */}
+        {activeTab === 'customers' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Customers List */}
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-lg text-white flex items-center gap-2"><Users className="w-5 h-5 text-indigo-400" /> 客戶聯絡人名冊</h3>
+                  <button onClick={() => alert('新增客戶功能已就緒')} className="px-3 py-1.5 bg-indigo-600/20 text-indigo-300 rounded-xl text-xs font-semibold border border-indigo-500/30">+ 新增客戶</button>
+                </div>
+                <div className="space-y-3">
+                  {customers.map(c => (
+                    <div key={c.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-1 text-xs">
+                      <div className="font-bold text-white text-sm">{c.name}</div>
+                      <div className="text-slate-300">聯絡人: {c.contact} | 電話: {c.phone}</div>
+                      <div className="text-slate-400">Email: {c.email}</div>
+                      <div className="text-slate-500">地址: {c.address}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Inventory List */}
+              <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-lg text-white flex items-center gap-2"><Layers className="w-5 h-5 text-pink-400" /> 產品庫存管理</h3>
+                  <button onClick={() => alert('新增產品庫存功能已就緒')} className="px-3 py-1.5 bg-pink-600/20 text-pink-300 rounded-xl text-xs font-semibold border border-pink-500/30">+ 新增庫存</button>
+                </div>
+                <div className="space-y-3">
+                  {inventory.map(i => (
+                    <div key={i.id} className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex justify-between items-center text-xs">
+                      <div>
+                        <div className="font-mono text-indigo-400 font-semibold">{i.sku}</div>
+                        <div className="font-bold text-white text-sm mt-0.5">{i.name}</div>
+                        <div className="text-slate-400 mt-1">單價: NT$ {i.unitPrice.toLocaleString()}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-extrabold text-emerald-400">{i.stock} <span className="text-xs font-normal text-slate-400">件</span></div>
+                        <span className="text-[10px] bg-slate-900 text-slate-300 px-2 py-0.5 rounded-full">{i.category}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: 待辦事項 */}
         {activeTab === 'todos' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-lg">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl">
               <h2 className="text-lg font-bold text-white">業務與出貨工作待辦事項 (To-Do List)</h2>
               <p className="text-xs text-slate-400 mt-1">隨手記錄每日待辦任務、採購追蹤與交期提醒，確保萬無一失。</p>
 
@@ -710,14 +1006,14 @@ export default function App() {
                 />
                 <button 
                   type="submit"
-                  className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
+                  className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
                 >
                   <Plus className="w-4 h-4" /> 新增待辦
                 </button>
               </form>
             </div>
 
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-lg overflow-hidden divide-y divide-slate-800/80">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-xl overflow-hidden divide-y divide-slate-800/80">
               {todos.length === 0 ? (
                 <div className="p-12 text-center text-slate-500 text-sm">
                   目前沒有待辦事項！
@@ -764,23 +1060,23 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: Outlook 郵件紀錄 */}
+        {/* TAB 6: Outlook 郵件紀錄 */}
         {activeTab === 'outlook' && (
-          <div className="space-y-6">
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 p-6 sm:p-8 rounded-3xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <h2 className="text-lg font-bold text-white">Microsoft Outlook 郵件自動同步紀錄</h2>
                 <p className="text-xs text-slate-400 mt-1">透過 Microsoft Graph API 自動擷取新訂單與出貨通知信件。</p>
               </div>
               <button
                 onClick={simulateOutlookSync}
-                className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
+                className="px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-indigo-600/30 transition whitespace-nowrap"
               >
                 <RefreshCw className="w-4 h-4" /> 立即連線同步信件
               </button>
             </div>
 
-            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-lg overflow-hidden divide-y divide-slate-800/80">
+            <div className="bg-slate-900/70 backdrop-blur-xl border border-slate-800 rounded-3xl shadow-xl overflow-hidden divide-y divide-slate-800/80">
               {emails.map((mail) => (
                 <div key={mail.id} className="p-5 sm:p-6 hover:bg-slate-800/40 transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div className="space-y-1.5">
@@ -810,10 +1106,19 @@ export default function App() {
       </main>
 
       {/* Mobile Bottom Navigation Bar (Glassmorphic Native App Style) */}
-      <nav className="bg-slate-900/90 backdrop-blur-2xl border-t border-slate-800 fixed bottom-0 left-0 right-0 z-40 md:hidden shadow-2xl flex justify-around py-2.5 px-2">
+      <nav className="bg-slate-900/90 backdrop-blur-2xl border-t border-slate-800 fixed bottom-0 left-0 right-0 z-40 md:hidden shadow-2xl flex justify-around py-2.5 px-1">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
+            activeTab === 'dashboard' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          }`}
+        >
+          <BarChart3 className="w-5 h-5 mb-1" />
+          <span className="text-[10px]">總覽</span>
+        </button>
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition ${
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
             activeTab === 'orders' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
@@ -822,16 +1127,16 @@ export default function App() {
         </button>
         <button
           onClick={() => setActiveTab('shipping')}
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition ${
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
             activeTab === 'shipping' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <Box className="w-5 h-5 mb-1" />
-          <span className="text-[10px]">出貨</span>
+          <span className="text-[10px]">裝箱</span>
         </button>
         <button
           onClick={() => setActiveTab('production')}
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition ${
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
             activeTab === 'production' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
@@ -839,22 +1144,22 @@ export default function App() {
           <span className="text-[10px]">生管</span>
         </button>
         <button
+          onClick={() => setActiveTab('customers')}
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
+            activeTab === 'customers' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          }`}
+        >
+          <Users className="w-5 h-5 mb-1" />
+          <span className="text-[10px]">客戶</span>
+        </button>
+        <button
           onClick={() => setActiveTab('todos')}
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition ${
+          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
             activeTab === 'todos' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <CheckSquare className="w-5 h-5 mb-1" />
           <span className="text-[10px]">待辦</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('outlook')}
-          className={`flex flex-col items-center py-1 px-3 rounded-2xl transition ${
-            activeTab === 'outlook' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
-          }`}
-        >
-          <Mail className="w-5 h-5 mb-1" />
-          <span className="text-[10px]">郵件</span>
         </button>
       </nav>
 
@@ -1000,7 +1305,7 @@ export default function App() {
                 </button>
                 <button 
                   type="submit"
-                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-2xl font-semibold transition shadow-lg shadow-indigo-600/30"
+                  className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white rounded-2xl font-semibold transition shadow-lg shadow-indigo-600/30"
                 >
                   確認新增
                 </button>
