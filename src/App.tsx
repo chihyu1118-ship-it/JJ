@@ -160,27 +160,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'shipping' | 'production' | 'customers' | 'todos' | 'outlook'>('dashboard');
   
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('jj_orders_v5');
+    const saved = localStorage.getItem('jj_orders_v6');
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
   const [customers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('jj_customers_v5');
+    const saved = localStorage.getItem('jj_customers_v6');
     return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
   });
 
   const [inventory] = useState<InventoryItem[]>(() => {
-    const saved = localStorage.getItem('jj_inventory_v5');
+    const saved = localStorage.getItem('jj_inventory_v6');
     return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
   });
 
   const [emails, setEmails] = useState<EmailLog[]>(() => {
-    const saved = localStorage.getItem('jj_emails_v5');
+    const saved = localStorage.getItem('jj_emails_v6');
     return saved ? JSON.parse(saved) : INITIAL_EMAILS;
   });
 
   const [todos, setTodos] = useState<TodoItem[]>(() => {
-    const saved = localStorage.getItem('jj_todos_v5');
+    const saved = localStorage.getItem('jj_todos_v6');
     return saved ? JSON.parse(saved) : INITIAL_TODOS;
   });
 
@@ -211,23 +211,23 @@ export default function App() {
   const [newTodoDate, setNewTodoDate] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('jj_orders_v5', JSON.stringify(orders));
+    localStorage.setItem('jj_orders_v6', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('jj_customers_v5', JSON.stringify(customers));
+    localStorage.setItem('jj_customers_v6', JSON.stringify(customers));
   }, [customers]);
 
   useEffect(() => {
-    localStorage.setItem('jj_inventory_v5', JSON.stringify(inventory));
+    localStorage.setItem('jj_inventory_v6', JSON.stringify(inventory));
   }, [inventory]);
 
   useEffect(() => {
-    localStorage.setItem('jj_emails_v5', JSON.stringify(emails));
+    localStorage.setItem('jj_emails_v6', JSON.stringify(emails));
   }, [emails]);
 
   useEffect(() => {
-    localStorage.setItem('jj_todos_v5', JSON.stringify(todos));
+    localStorage.setItem('jj_todos_v6', JSON.stringify(todos));
   }, [todos]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -445,9 +445,8 @@ export default function App() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-sm sm:text-base font-extrabold tracking-tight text-white">JJ 企業管理中心</h1>
-                <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-full border border-indigo-500/30 hidden sm:inline-block">2026 Pro</span>
+                <span className="px-2.5 py-0.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold rounded-full border border-indigo-500/30">2026 Pro</span>
               </div>
-              <p className="text-[11px] text-slate-400">總覽 ∙ 訂單 ∙ 庫存 ∙ 出貨 ∙ 生管 ∙ 待辦</p>
             </div>
           </div>
           
@@ -1105,7 +1104,7 @@ export default function App() {
 
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Glassmorphic Native App Style - exactly 5 clean items) */}
+      {/* Mobile Bottom Navigation Bar */}
       <nav className="bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800 fixed bottom-0 left-0 right-0 z-50 md:hidden shadow-2xl flex justify-around py-2 px-1">
         <button
           onClick={() => setActiveTab('dashboard')}
