@@ -160,27 +160,27 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'orders' | 'shipping' | 'production' | 'customers' | 'todos' | 'outlook'>('dashboard');
   
   const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('jj_orders_v4');
+    const saved = localStorage.getItem('jj_orders_v5');
     return saved ? JSON.parse(saved) : INITIAL_ORDERS;
   });
 
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    const saved = localStorage.getItem('jj_customers_v4');
+  const [customers] = useState<Customer[]>(() => {
+    const saved = localStorage.getItem('jj_customers_v5');
     return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
   });
 
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
-    const saved = localStorage.getItem('jj_inventory_v4');
+  const [inventory] = useState<InventoryItem[]>(() => {
+    const saved = localStorage.getItem('jj_inventory_v5');
     return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
   });
 
   const [emails, setEmails] = useState<EmailLog[]>(() => {
-    const saved = localStorage.getItem('jj_emails_v4');
+    const saved = localStorage.getItem('jj_emails_v5');
     return saved ? JSON.parse(saved) : INITIAL_EMAILS;
   });
 
   const [todos, setTodos] = useState<TodoItem[]>(() => {
-    const saved = localStorage.getItem('jj_todos_v4');
+    const saved = localStorage.getItem('jj_todos_v5');
     return saved ? JSON.parse(saved) : INITIAL_TODOS;
   });
 
@@ -211,23 +211,23 @@ export default function App() {
   const [newTodoDate, setNewTodoDate] = useState('');
 
   useEffect(() => {
-    localStorage.setItem('jj_orders_v4', JSON.stringify(orders));
+    localStorage.setItem('jj_orders_v5', JSON.stringify(orders));
   }, [orders]);
 
   useEffect(() => {
-    localStorage.setItem('jj_customers_v4', JSON.stringify(customers));
+    localStorage.setItem('jj_customers_v5', JSON.stringify(customers));
   }, [customers]);
 
   useEffect(() => {
-    localStorage.setItem('jj_inventory_v4', JSON.stringify(inventory));
+    localStorage.setItem('jj_inventory_v5', JSON.stringify(inventory));
   }, [inventory]);
 
   useEffect(() => {
-    localStorage.setItem('jj_emails_v4', JSON.stringify(emails));
+    localStorage.setItem('jj_emails_v5', JSON.stringify(emails));
   }, [emails]);
 
   useEffect(() => {
-    localStorage.setItem('jj_todos_v4', JSON.stringify(todos));
+    localStorage.setItem('jj_todos_v5', JSON.stringify(todos));
   }, [todos]);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -481,7 +481,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <BarChart3 className="w-4 h-4" /> 儀表板總覽
+            <BarChart3 className="w-4 h-4" /> 總覽
           </button>
           <button
             onClick={() => setActiveTab('orders')}
@@ -521,7 +521,7 @@ export default function App() {
                 : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
             }`}
           >
-            <Users className="w-4 h-4" /> 客戶與產品庫存
+            <Users className="w-4 h-4" /> 客戶與庫存
           </button>
           <button
             onClick={() => setActiveTab('todos')}
@@ -1105,12 +1105,12 @@ export default function App() {
 
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Glassmorphic Native App Style) */}
-      <nav className="bg-slate-900/90 backdrop-blur-2xl border-t border-slate-800 fixed bottom-0 left-0 right-0 z-40 md:hidden shadow-2xl flex justify-around py-2.5 px-1">
+      {/* Mobile Bottom Navigation Bar (Glassmorphic Native App Style - exactly 5 clean items) */}
+      <nav className="bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800 fixed bottom-0 left-0 right-0 z-50 md:hidden shadow-2xl flex justify-around py-2 px-1">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'dashboard' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          className={`flex flex-col items-center py-1.5 px-3 rounded-2xl transition ${
+            activeTab === 'dashboard' ? 'text-indigo-400 font-bold bg-indigo-500/15' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <BarChart3 className="w-5 h-5 mb-1" />
@@ -1118,8 +1118,8 @@ export default function App() {
         </button>
         <button
           onClick={() => setActiveTab('orders')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'orders' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          className={`flex flex-col items-center py-1.5 px-3 rounded-2xl transition ${
+            activeTab === 'orders' ? 'text-indigo-400 font-bold bg-indigo-500/15' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <Package className="w-5 h-5 mb-1" />
@@ -1127,35 +1127,26 @@ export default function App() {
         </button>
         <button
           onClick={() => setActiveTab('shipping')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'shipping' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          className={`flex flex-col items-center py-1.5 px-3 rounded-2xl transition ${
+            activeTab === 'shipping' ? 'text-indigo-400 font-bold bg-indigo-500/15' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <Box className="w-5 h-5 mb-1" />
-          <span className="text-[10px]">裝箱</span>
+          <span className="text-[10px]">出貨</span>
         </button>
         <button
           onClick={() => setActiveTab('production')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'production' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          className={`flex flex-col items-center py-1.5 px-3 rounded-2xl transition ${
+            activeTab === 'production' ? 'text-indigo-400 font-bold bg-indigo-500/15' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <Factory className="w-5 h-5 mb-1" />
           <span className="text-[10px]">生管</span>
         </button>
         <button
-          onClick={() => setActiveTab('customers')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'customers' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
-          }`}
-        >
-          <Users className="w-5 h-5 mb-1" />
-          <span className="text-[10px]">客戶</span>
-        </button>
-        <button
           onClick={() => setActiveTab('todos')}
-          className={`flex flex-col items-center py-1 px-2.5 rounded-2xl transition ${
-            activeTab === 'todos' ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-400 font-medium hover:text-white'
+          className={`flex flex-col items-center py-1.5 px-3 rounded-2xl transition ${
+            activeTab === 'todos' ? 'text-indigo-400 font-bold bg-indigo-500/15' : 'text-slate-400 font-medium hover:text-white'
           }`}
         >
           <CheckSquare className="w-5 h-5 mb-1" />
